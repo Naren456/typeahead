@@ -11,25 +11,53 @@ services:
       POSTGRES_DB: typeahead
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d typeahead"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  setup:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    command: sh -c "npx prisma generate && npx prisma db push && npx prisma db seed"
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/typeahead
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   backend:
     build:
       context: ./Backend
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "5000:5000"
     volumes:
-      - ./Backend:/app              # Sync my local Backend folder to /app in the container
-      - /app/node_modules           # Keep the container's node_modules isolated
+      - ./Backend:/app              # Sync local Backend folder to /app in container
+      - /app/node_modules           # Keep container's node_modules isolated
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/typeahead
+      REDIS_URL: redis://redis:6379
     depends_on:
-      - postgres
+      setup:
+        condition: service_completed_successfully
 
   frontend:
     build:
       context: ./Frontend
       dockerfile: Dockerfile
+    command: npm run dev -- --host
     ports:
       - "5173:5173"
+    volumes:
+      - ./Frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
 
