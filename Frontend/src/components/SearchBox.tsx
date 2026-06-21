@@ -14,7 +14,16 @@ export default function SearchBox() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [trending, setTrending] = useState<string[]>([]);
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  // Fetch Trending on mount
+  useEffect(() => {
+    fetch("http://localhost:5000/api/v2/trending")
+      .then(res => res.json())
+      .then(result => setTrending(result.data || []))
+      .catch(err => console.error("Failed to load trending:", err));
+  }, []);
 
   useEffect(() => {
     if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
@@ -146,6 +155,19 @@ export default function SearchBox() {
           </>
         )}
       </div>
+
+      {/* Trending Ticker */}
+      {trending.length > 0 && (
+        <div className="trending-ticker">
+          <span className="trending-label">🔥 TRENDING:</span>
+          {trending.map((term, i) => (
+            <span key={i} className="trending-term" onClick={() => handleSearch(term)}>
+              {term}
+              {i < trending.length - 1 && <span className="trending-dot">•</span>}
+            </span>
+          ))}
+        </div>
+      )}
 
         <div className="action-buttons">
           <button type="submit" className="pop-btn">Search Now</button>

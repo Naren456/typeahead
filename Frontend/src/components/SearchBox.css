@@ -199,3 +199,38 @@
 .suggestion-item.selected {
   background-color: var(--pop-yellow);
 }
+
+.trending-ticker {
+  margin-top: 24px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 700;
+  color: var(--pop-black);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  max-width: 600px;
+}
+
+.trending-label {
+  color: var(--pop-pink);
+  margin-right: 8px;
+}
+
+.trending-term {
+  cursor: pointer;
+  transition: color 0.1s;
+}
+
+.trending-term:hover {
+  color: var(--pop-cyan);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+.trending-dot {
+  margin-left: 8px;
+  color: #999;
+  pointer-events: none;
+}

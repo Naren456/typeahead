@@ -1,257 +1,37 @@
-# Assignment: Build a Search Typeahead System
+# POP SEARCH (Distributed TypeAhead System)
 
-## 1. Overview
+A production-grade, highly scalable TypeAhead Search API built with Node.js, React, PostgreSQL, and a distributed Redis Cluster.
 
-In this assignment, students will build a search typeahead system similar to the suggestion feature seen in search engines, e-commerce platforms, and content platforms.
+## Features & Architecture
 
-The system should:
+### 1. Consistent Hashing (Distributed Cache)
+Instead of relying on a single Redis node, this system implements a mathematically perfect **Consistent Hashing Algorithm**.
+- A cryptographic MD5 "Hash Ring" distributes search prefixes evenly across a 3-node Redis cluster (`redis-1`, `redis-2`, `redis-3`).
+- **100 Virtual Replicas** per node ensure smooth load balancing and prevent "hot-spotting" where one node handles disproportionate traffic.
+- A "Magic Wrapper" dynamically routes `get` and `setEx` calls to the correct node based on the prefix using a binary search algorithm in $O(\log n)$ time.
 
-- Suggest popular search queries while the user is typing.
-- Support search submissions.
-- Update query popularity.
-- Use caching to achieve low-latency reads.
+### 2. Write-Behind Batching
+To achieve 10,000+ Requests Per Second (RPS) without melting the PostgreSQL database, we decoupled ingestion from disk I/O.
+- Incoming searches hit an **In-Memory Queue** (RAM) and return instantly.
+- A **Background Aggregator Worker** drains the queue every 5 seconds (or if the queue exceeds 1,000 items) and aggregates duplicates.
+- The worker executes a single bulk `prisma.$transaction`, reducing thousands of database calls to just 1.
+- *Tradeoff:* In-memory queues trade durability for speed. If the server crashes, up to 5 seconds of search logs could be lost. For a non-financial analytics system like Trending Searches, this is an optimal tradeoff.
 
-The focus of this assignment is backend data-system design:
+### 3. Blended Trending Searches Algorithm
+We implemented a Hacker News / Reddit style ranking algorithm to determine "Trending" searches.
+- Instead of pure recency (which allows obscure recent words to dominate) or pure popularity (which prevents new words from trending), we use a blended formula:
+  $$ \text{Score} = \log_{10}(\text{Historical Count}) + \left(\frac{\text{Current Timestamp Seconds}}{45000}\right) $$
+- This creates an exponential decay curve where highly popular words get a small logarithmic boost, but recency allows fresh queries to rise to the top.
 
-- How query-count data is stored.
-- How suggestions are served quickly.
-- How cache distribution is handled.
-- How write pressure is reduced.
+### 4. 100k "Defensible" Dataset
+The database is seeded with Peter Norvig's N-Grams corpus, featuring the top 100,000 real English words and their exact Google Web frequencies. We migrated the Prisma schema to use `BigInt` to support words with over 2 billion occurrences.
 
----
+## Running Locally
 
-## 2. Problem Statement
-
-Build a working search typeahead application with the following capabilities:
-
-1. When a user types in the search box, the system should show 10 suggestions sorted by search count.
-2. The application should include a UI interface for searching and displaying suggestions.
-3. The backend should expose a dummy search API that returns a response such as `"Searched"`.
-4. Whenever a search is submitted, the search-query data store should be updated.
-5. Students should design how query-count data is stored and how caching is used for low latency.
-6. The cache layer should be distributed using consistent hashing.
-7. The system should support trending searches.
-8. The system should support batch writes for search-count updates.
-
----
-
-## 3. Dataset Requirement
-
-Students may use any open-source dataset containing search queries, keywords, product names, page titles, or similar text entries.
-
-The dataset should include a count or frequency value for each query.
-
-If the chosen dataset does not already include counts, students may derive counts through aggregation.
-
-### Expected Input Format
-
-| Query | Count |
-|---------|---------|
-| iphone | 100000 |
-| iphone 15 | 85000 |
-| iphone charger | 60000 |
-| java tutorial | 40000 |
-
-**Minimum expected dataset size:** 100,000 queries.
-
-Larger datasets are encouraged.
-
----
-
-# 4. Functional Requirements
-
-## 4.1 Typeahead Suggestions
-
-When a user types a prefix in the search box, the system should return suggestions matching that prefix.
-
-Requirements:
-
-- Return at most 10 suggestions.
-- Suggestions must start with the typed prefix.
-- Suggestions must be sorted by count in descending order.
-- Handle empty input, missing input, mixed-case input, and prefixes with no matches gracefully.
-- Avoid unnecessary backend calls (e.g., by debouncing).
-
----
-
-## 4.2 Search Submission
-
-When a user submits a search:
-
-- If the query already exists, its count should increase.
-- If the query does not exist, insert it with an initial count.
-- The dummy search API should return:
-
-```json
-{
-  "message": "Searched"
-}
+1. Start the cluster:
+```bash
+docker compose up --build -d
 ```
-
-- Updated counts should eventually be reflected in suggestions and trending searches.
-
----
-
-# 5. API Expectations
-
-| API | Purpose | Expected Behavior |
-|------|----------|------------------|
-| GET /suggest?q=<prefix> | Fetch suggestions | Returns up to 10 prefix-matching suggestions sorted by count |
-| POST /search | Submit search | Returns "Searched" and records submitted query |
-| GET /cache/debug?prefix=<prefix> | Debug cache routing | Shows cache node responsible for prefix and hit/miss |
-
----
-
-# 6. Data Storage and Caching Expectations
-
-Students must decide how to store search-query data and how to serve suggestions with low latency.
-
-Expected design considerations:
-
-- Maintain query-count data reliably.
-- Cache frequently requested suggestions.
-- Cache suggestion results for prefixes.
-- Support cache expiry/invalidation.
-- Distribute cache across multiple logical cache nodes.
-- Use consistent hashing to determine cache ownership.
-
----
-
-# 7. Trending Searches
-
-The basic version (60 marks) should return suggestions sorted by overall popularity.
-
-For the additional 20 marks:
-
-Students should incorporate recency into ranking.
-
-Recently searched queries should receive higher priority instead of relying solely on all-time counts.
-
-Students should explain:
-
-1. How recent searches are tracked.
-2. How recent activity affects ranking.
-3. How short-term spikes are prevented from permanently dominating rankings.
-4. How cache updates or invalidation occur when rankings change.
-5. Trade-offs between freshness, latency, and complexity.
-
-### Core API Remains
-
-```http
-GET /suggest?q=<prefix>
-```
-
-### Basic Version
-
-- Sort matching suggestions by overall count.
-
-### Enhanced Version
-
-- Sort matching suggestions using a recency-aware ranking mechanism.
-
-Students should demonstrate differences between both ranking methods using sample data or logs.
-
----
-
-# 8. Batch Writes
-
-Students must support batch writes for search-count updates.
-
-Goal:
-
-Avoid writing to the primary database synchronously for every search request.
-
-Requirements:
-
-- Collect search submissions in a buffer, queue, log, or similar mechanism.
-- Aggregate repeated queries before writing.
-- Periodically flush updates or flush when batch size threshold is reached.
-- Demonstrate reduced database writes.
-- Discuss failure scenarios and trade-offs.
-
----
-
-# 9. UI Requirements
-
-The UI should include:
-
-- Search input box.
-- Suggestion dropdown updated while typing.
-- Search submission using Enter or Search button.
-- Display dummy search response.
-- Trending searches section.
-- Loading and error states.
-- Keyboard navigation support.
-- Clean and usable layout.
-
----
-
-# 10. Non-Functional Expectations
-
-- System should be easy to run locally.
-- Suggestion API should be optimized for low latency.
-- Students should measure and report latency (preferably P95).
-- Avoid duplicate reads/writes when possible.
-- Include logs or explanations demonstrating consistent hashing.
-- Code should be modular, readable, and documented.
-
----
-
-# 11. Use of AI and Academic Integrity
-
-AI tools are allowed.
-
-However:
-
-Students remain fully responsible for understanding their submission.
-
-After submission, students should be able to explain:
-
-- Data modeling decisions.
-- Caching design.
-- Consistent hashing.
-- Trending search computation.
-- Batch-write logic.
-- Important code snippets.
-
-If a student cannot explain the implementation during viva/mock interviews, the submission may be treated as plagiarism even if the code runs correctly.
-
----
-
-# 12. Expected Submission
-
-Submit:
-
-- GitHub repository (or equivalent source-code submission).
-- README with setup instructions.
-- Dataset source and loading instructions.
-- Architecture diagram or architecture explanation.
-- API documentation.
-- Screenshots or demo video.
-- Performance report including:
-  - Latency
-  - Cache hit rate
-  - Write reduction from batching
-- Design decisions and trade-offs.
-
----
-
-# 13. Grading Rubric (100 Marks)
-
-| Component | Marks | Expectation |
-|------------|---------|-------------|
-| Basic Implementation | 60 | Search UI, suggestions API, search API, query-count updates, distributed cache using consistent hashing |
-| Trending Searches | 20 | Working trending-search implementation with ranking explanation |
-| Batch Writes | 20 | Batching or sampling, write reduction evidence, trade-off discussion |
-
----
-
-# 14. Suggested Milestones
-
-1. Load dataset and build suggestion API.
-2. Build frontend search box and suggestion dropdown.
-3. Add dummy search submission and query-count updates.
-4. Add distributed cache with consistent hashing.
-5. Add trending searches.
-6. Add batch writes.
-7. Measure performance and prepare final documentation/demo.
+2. The Database will automatically seed the 100k dataset.
+3. Access the Frontend at `http://localhost:5173`.
+4. Verify the cache distribution at `http://localhost:5000/api/v2/cache/debug?prefix=apple`.

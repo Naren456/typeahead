@@ -1,5 +1,4 @@
 import prisma from "../config/db.js";
-
 import distributedRedisClient from "../config/redis.js";
 
 const searchQueue: string[] = [];
@@ -8,13 +7,15 @@ export const saveSearchQuery = async (query: string) => {
     const q = query.toLowerCase();
     searchQueue.push(q);
     
-    // Save to Redis Sorted Set with Unix timestamp for "Trending Searches"
-    await distributedRedisClient.zAdd("trending_searches", Date.now(), q);
+    // Batch Size Trigger: Flush immediately if queue is getting too large
+    if (searchQueue.length >= 1000) {
+        flushQueue(); // Background execution
+    }
     
     return { success: true, queued: true };
 };
 
-setInterval(async () => {
+const flushQueue = async () => {
     if (searchQueue.length === 0) return;
 
     const batch = [...searchQueue];
@@ -34,10 +35,28 @@ setInterval(async () => {
             })
         );
         
-        await prisma.$transaction(operations);
-        console.log(`[Batch Worker] Successfully saved ${batch.length} searches to PostgreSQL!`);
+        // 1. Execute bulk transaction in PostgreSQL
+        const results = await prisma.$transaction(operations);
+        
+        // 2. Compute Blended Trending Score and update Redis Distributed Cache
+        const currentTimestampSec = Math.floor(Date.now() / 1000);
+        
+        for (const res of results) {
+            // Schema count is BigInt, convert to Number for math
+            const historicalCount = Number(res.count); 
+            
+            // Hacker News style algorithm: log10(popularity) + (recency_decay)
+            const score = Math.log10(historicalCount) + (currentTimestampSec / 45000);
+            
+            await distributedRedisClient.zAdd("trending_searches", score, res.query);
+        }
+        
+        console.log(`[Batch Worker] Flushed ${batch.length} queries & updated Trending Scores`);
     } catch (err) {
-        console.error("[Batch Worker] Failed to save batch:", err);
+        console.error("[Batch Worker] Failed to save batch, re-queuing:", err);
         searchQueue.push(...batch);
     }
-}, 5000);
+};
+
+// Time-based trigger: Flush every 5 seconds regardless of size
+setInterval(flushQueue, 5000);
