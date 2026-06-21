@@ -4,6 +4,6 @@ export const getSuggestions = async (q: string) => {
     return await prisma.searchQuery.findMany({
         where: { query: { startsWith: q.toLowerCase() } },
         orderBy: { count: 'desc' },
-        take: 5 
+        take: 10 
     });
 };

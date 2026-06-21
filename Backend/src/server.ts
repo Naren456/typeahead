@@ -6,6 +6,12 @@ dotenv.config();
 
 const app = express();
 
+// The "Final Boss" BigInt Fix!
+// This tells JavaScript how to automatically convert Prisma BigInts into JSON strings
+(BigInt.prototype as any).toJSON = function () {
+    return Number(this);
+};
+
 app.use(cors());
 app.use(express.json());
 

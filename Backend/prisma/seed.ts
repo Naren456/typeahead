@@ -10,27 +10,28 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log("🌐 Downloading 10,000 English words dataset...");
+  console.log("🌐 Downloading Peter Norvig's 330k N-Grams dataset (this may take a moment)...");
   
-  // 1. Download the dataset
-  const response = await fetch("https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-no-swears.txt");
+  // 1. Download the massive defensible dataset
+  const response = await fetch("https://norvig.com/ngrams/count_1w.txt");
   const text = await response.text();
   
-  // 2. Split into an array of words
-  const words = text.split("\n").filter(word => word.trim().length > 0);
-  console.log(`✅ Successfully downloaded ${words.length} words!`);
+  // 2. Parse the tab-separated file (Word \t Count)
+  const lines = text.split("\n").filter(line => line.trim().length > 0);
+  console.log(`✅ Successfully downloaded ${lines.length} words! Filtering to the top 100,000...`);
   
   console.log("🧹 Clearing old database records...");
   await prisma.searchQuery.deleteMany({});
   
-  console.log("⏳ Seeding database... This might take a few seconds.");
+  console.log("⏳ Seeding 100,000 records into the database... This will take a few seconds.");
   
-  // 3. Format the data for Prisma
-  const seedData = words.map((word) => {
+  // 3. Format the data for Prisma using the ACTUAL usage counts, capping at 100k
+  const seedData = lines.slice(0, 100000).map((line) => {
+    const [word, countStr] = line.split("\t");
     return {
       query: word.trim(),
-      // Assign a random popularity score between 1 and 500
-      count: Math.floor(Math.random() * 500) + 1
+      // Use the actual defensible frequency count from the dataset
+      count: parseInt(countStr, 10) || 1
     };
   });
 

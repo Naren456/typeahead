@@ -15,5 +15,5 @@ datasource db {
 model SearchQuery {
   id    Int    @id @default(autoincrement())
   query String @unique
-  count Int    @default(1)
+  count BigInt @default(1)
 }

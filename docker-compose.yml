@@ -16,10 +16,18 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-  redis:
+  redis-1:
     image: redis:alpine
     ports:
       - "6379:6379"
+  redis-2:
+    image: redis:alpine
+    ports:
+      - "6380:6379"
+  redis-3:
+    image: redis:alpine
+    ports:
+      - "6381:6379"
 
   setup:
     build:
@@ -43,7 +51,7 @@ services:
       - /app/node_modules           # Keep container's node_modules isolated
     environment:
       DATABASE_URL: postgresql://postgres:password@postgres:5432/typeahead
-      REDIS_URL: redis://redis:6379
+      REDIS_URLS: redis://redis-1:6379,redis://redis-2:6379,redis://redis-3:6379
     depends_on:
       setup:
         condition: service_completed_successfully
