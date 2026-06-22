@@ -1,22 +1,24 @@
-import { Router } from "express";
+import type { FastifyInstance } from "fastify";
 import distributedRedisClient from "../../config/redis.js";
 
-const router = Router();
+export default async function routes(fastify: FastifyInstance, options: any) {
+    fastify.get("/", async (request, reply) => {
+        try {
+            // ZREVRANGE fetches the top N items sorted by highest score (most recent timestamp)
+            // We get the top 10 most recently searched terms!
+            const client = distributedRedisClient.getClientFor("trending:global");
+            let trending: string[] = [];
+            if (client) {
+                trending = await client.zRange("trending:global", 0, 9, { REV: true });
+            }
 
-router.get("/", async (req, res) => {
-    try {
-        // ZREVRANGE fetches the top N items sorted by highest score (most recent timestamp)
-        // We get the top 10 most recently searched terms!
-        const trending = await distributedRedisClient.zRange("trending_searches", 0, 9, { REV: true });
-        
-        return res.status(200).json({ 
-            message: "Trending Searches fetched successfully", 
-            data: trending 
-        });
-    } catch (error) {
-        console.error("Trending Route Error:", error);
-        return res.status(500).json({ error: "Failed to fetch trending searches" });
-    }
-});
-
-export default router;
+            return reply.status(200).send({
+                message: "Trending Searches fetched successfully",
+                data: trending
+            });
+        } catch (error) {
+            console.error("Trending Route Error:", error);
+            return reply.status(500).send({ error: "Failed to fetch trending searches" });
+        }
+    });
+}

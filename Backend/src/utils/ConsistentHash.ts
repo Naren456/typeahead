@@ -33,14 +33,14 @@ export class ConsistentHash {
         const hashVal  = this.hash(key);
         let left = 0;
         let right = this.keys.length -1;
-        if(hashVal > this.keys[right]){
-            return this.ring.get(this.keys[0])!;
+        if(hashVal > this.keys[right]!){
+            return this.ring.get(this.keys[0]!)!;
         }
         while(left <= right){
             const mid =  Math.floor((left + right)/2);
-            if(this.keys[mid] >= hashVal){
-                if(mid == 0 || this.keys[mid -1] < hashVal){
-                   return this.ring.get(this.keys[mid])!;
+            if(this.keys[mid]! >= hashVal){
+                if(mid == 0 || this.keys[mid -1]! < hashVal){
+                   return this.ring.get(this.keys[mid]!)!;
                 }
                 right = mid -1;
             }
@@ -50,7 +50,7 @@ export class ConsistentHash {
 
 
         }
-        return this.ring.get(this.keys[0])!;
+        return this.ring.get(this.keys[0]!)!;
     }
 
 }

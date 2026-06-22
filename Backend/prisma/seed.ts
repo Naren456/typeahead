@@ -29,9 +29,9 @@ async function main() {
   const seedData = lines.slice(0, 100000).map((line) => {
     const [word, countStr] = line.split("\t");
     return {
-      query: word.trim(),
+      query: (word || "").trim(),
       // Use the actual defensible frequency count from the dataset
-      count: parseInt(countStr, 10) || 1
+      count: parseInt(countStr || "1", 10) || 1
     };
   });
 

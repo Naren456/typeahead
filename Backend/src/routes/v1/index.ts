@@ -1,10 +1,8 @@
-import { Router } from "express";
-import suggestionRoute from "./suggestion.route.js";
+import type { FastifyInstance } from "fastify";
 import searchRoute from "./search.route.js";
+import suggestionRoute from "./suggestion.route.js";
 
-const router = Router();
-
-router.use("/suggest", suggestionRoute);
-router.use("/search", searchRoute);
-
-export default router;
+export default async function routes(fastify: FastifyInstance, options: any) {
+    fastify.register(searchRoute, { prefix: "/search" });
+    fastify.register(suggestionRoute, { prefix: "/suggest" });
+}
