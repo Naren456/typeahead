@@ -19,7 +19,7 @@ export default function SearchBox() {
 
   // Fetch Trending on mount
   useEffect(() => {
-    fetch("http://localhost:5000/api/v2/trending")
+    fetch("http://localhost:8000/api/v2/trending")
       .then(res => res.json())
       .then(result => setTrending(result.data || []))
       .catch(err => console.error("Failed to load trending:", err));
@@ -38,7 +38,7 @@ export default function SearchBox() {
 
     debounceTimeout.current = setTimeout(async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/v2/suggest?q=${encodeURIComponent(query)}`);
+        const response = await fetch(`http://localhost:8000/api/v2/suggest?q=${encodeURIComponent(query)}`);
         if (!response.ok) throw new Error("Network response was not ok");
         const result = await response.json();
         setSuggestions(result.data || []);
@@ -62,7 +62,7 @@ export default function SearchBox() {
     setIsFocused(false);   
     
     try {
-      await fetch("http://localhost:5000/api/v1/search", {
+      await fetch("http://localhost:8000/api/v1/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: searchQuery })
@@ -136,7 +136,7 @@ export default function SearchBox() {
               )}
               {suggestions.map((item, index) => (
                 <li 
-                  key={item.id} 
+                  key={item.query} 
                   className={`suggestion-item ${index === selectedIndex ? "selected" : ""}`}
                   onClick={() => handleSearch(item.query)}
                   onMouseEnter={() => setSelectedIndex(index)}

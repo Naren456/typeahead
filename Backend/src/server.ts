@@ -12,7 +12,7 @@ const app = Fastify();
     return Number(this);
 };
 
-app.register(cors);
+app.register(cors, { origin: "*" });
 
 // Fastify hook (onResponse) that logs: { route, latencyMs, cacheHit: boolean, node: string } as JSON
 app.addHook("onResponse", (request, reply, done) => {
