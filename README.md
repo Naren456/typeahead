@@ -28,11 +28,22 @@ This project utilizes **Peter Norvig's 330k N-Grams corpus**, which features rea
 The system is designed for high throughput (10k+ RPS) and low latency by utilizing an API gateway pattern over a distributed cache ring, backed by asynchronous batch writing to the database.
 
 ```mermaid
-graph TD
-    Client[React Frontend] -->|API Calls| API[Fastify Backend]
-    
-    API -->|Read/Write Cache| Redis[(Redis Cluster)]
-    API -->|Batch Writes| DB[(PostgreSQL)]
+flowchart LR
+    Client([💻 React Frontend]) -->|HTTP REST| API{Fastify API Gateway}
+
+    subgraph Cache Layer
+        API -. MD5 Hash Ring .-> R1[(Redis Node 1)]
+        API -. MD5 Hash Ring .-> R2[(Redis Node 2)]
+        API -. MD5 Hash Ring .-> R3[(Redis Node 3)]
+    end
+
+    subgraph Storage Layer
+        API -->|In-Memory Buffer| Batch[BatchWriter Queue]
+        Batch -->|Async Bulk Insert| DB[(🐘 PostgreSQL)]
+    end
+
+    style API fill:#f9f,stroke:#333,stroke-width:2px
+    style Batch fill:#bbf,stroke:#333,stroke-width:1px
 ```
 
 ## API Documentation
