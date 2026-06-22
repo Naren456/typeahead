@@ -29,18 +29,10 @@ The system is designed for high throughput (10k+ RPS) and low latency by utilizi
 
 ```mermaid
 graph TD
-    Client[Frontend React App] -->|HTTP Requests| API[Fastify Node.js Backend]
+    Client[React Frontend] -->|API Calls| API[Fastify Backend]
     
-    subgraph Distributed Cache Ring
-        API -- Consistent Hashing --> R1[(Redis Node 1\n6379)]
-        API -- Consistent Hashing --> R2[(Redis Node 2\n6380)]
-        API -- Consistent Hashing --> R3[(Redis Node 3\n6381)]
-    end
-    
-    subgraph Persistent Storage Layer
-        API -- Read on Cache Miss --> DB[(PostgreSQL)]
-        API -- BatchWriter Buffer --> DB
-    end
+    API -->|Read/Write Cache| Redis[(Redis Cluster)]
+    API -->|Batch Writes| DB[(PostgreSQL)]
 ```
 
 ## API Documentation
@@ -55,10 +47,9 @@ graph TD
 | `/api/v2/metrics` | GET | Returns the performance report (P50/P95 latencies and Cache Hit Rates per Node). |
 | `/api/v2/batch/stats` | GET | Returns the number of database writes avoided via the BatchWriter aggregator. |
 
-## Demo
+## Screenshots
 
-*(Replace with actual screenshot link if available)*
-![Pop Search Demo](/demo.png)
+![Pop Search Demo](image.png)
 
 ## Performance Report
 
